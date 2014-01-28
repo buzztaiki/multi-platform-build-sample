@@ -1,0 +1,58 @@
+ext {
+    cpu = System.env.CPU.toLowerCase()
+    version = "0.5.7"
+    archiveName = "libmsgpack-devel-$version-windows-$cpu"
+    srcName = "msgpack-$version"
+    srcPkgName = "${srcName}.tar.gz"
+    srcPkg = file("$buildDir/$srcPkgName")
+    srcPkgDir = file("$buildDir/$srcName")
+    url = "http://msgpack.org/releases/cpp/$srcPkgName"
+    distDir = file("$buildDir/dist")
+    distFile = file("$distDir/${archiveName}.zip")
+    installDir = file("c:/lib/msgpack/$cpu")
+}
+
+task download {
+    outputs.upToDateWhen {srcPkg.exists()}
+} << {
+    mkdir buildDir
+    ant.get(src: url, dest: srcPkg, verbose: true)
+} 
+
+task extract(type: Copy, dependsOn: download) {
+    from tarTree(resources.gzip(srcPkg))
+    into buildDir
+}
+
+task compile(dependsOn: extract) << {
+    delete("${srcPkgDir}/include")
+    exec {
+        workingDir srcPkgDir
+        commandLine 'msbuild', '/t:Rebuild', '/p:Configuration=Release', 'msgpack_vc2008.sln'
+    }
+}
+
+
+task dist(dependsOn: compile) << {
+    ant.zip(destfile: "$distFile") {
+        fileset(dir: srcPkgDir) {
+            include(name: 'include/**')
+            include(name: 'lib/**')
+        }
+    }
+}
+
+task install(type: Copy, dependsOn: dist) {
+    from zipTree("$distFile")
+    into installDir
+} << {
+    println "Copy files into $outputs.files.files"
+}
+
+task uninstall {
+    delete installDir
+}
+
+task clean << {
+    delete(buildDir, distDir)
+}
